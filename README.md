@@ -169,7 +169,7 @@ The client runs on the host and talks to Kafka over `localhost:9092`. Install it
 
 ```bash
 pip install -r requirements_chat.txt
-python chat_cli.py
+python client/chat_cli.py   # run from the repository root
 ```
 
 Then chat:
@@ -212,9 +212,9 @@ docker compose down -v     # stop and remove Kafka data volumes
 
 To add a new capability:
 
-1. Declare the tool as a `FunctionDeclaration` in `llm_service.py` and add it to `TOOLS`.
-2. Add its name to `allowed_tools` in `init_payload.json`.
-3. Create a new service that consumes the tool's topic, performs the work, attaches the result under `function_call.response`, and publishes to `agent-function-responses`. The existing search services are the template.
-4. Add the service to `docker-compose.yml`.
+1. Implement a `Tool` subclass in `agentkit/tools/` with a `declaration()` (name, description, JSON-schema parameters) and an `execute(args)` method.
+2. Register it in `agentkit/tools/registry.py` (`build_default_registry`). It is now visible to the agent and runnable by the generic tool service.
+3. Add its name to `allowed_tools` in `init_payload.json`.
+4. Add a service entry to `docker-compose.yml` reusing the shared image with `command: python -u -m agentkit.services.tool_service` and `TOOL_NAME: your_tool`.
 
-Because every component is decoupled through Kafka, a new tool requires no changes to the model service beyond its declaration, and tools can be scaled, deployed, and replaced independently.
+No changes to the agent loop, the Gemini provider, or the tool service are required — that is the open/closed payoff of the `Tool` interface and registry. Tools can be scaled, deployed, and replaced independently because every component is decoupled through Kafka.
