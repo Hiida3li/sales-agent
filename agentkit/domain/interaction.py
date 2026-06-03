@@ -37,15 +37,19 @@ class Interaction:
         return None
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        data: Dict[str, Any] = {
             "interaction_id": self.interaction_id,
             "timestamp": self.timestamp,
             "user_query": self.user_query,
             "llm_reasoning": self.llm_reasoning,
             "text_responses": self.text_responses,
             "function_executions": [e.to_dict() for e in self.function_executions],
-            "all_executions_completed": self.all_executions_completed,
         }
+        # The original code writes this key only once the batch completes;
+        # mirror that so unfinished interactions stay byte-identical.
+        if self.all_executions_completed:
+            data["all_executions_completed"] = True
+        return data
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Interaction":
