@@ -1,6 +1,8 @@
-# Event-Driven Conversational Agent
+# Aura — Event-Driven Conversational Agent
 
-A distributed, function-calling AI agent for e-commerce customer service, built on Apache Kafka and Google Gemini. The agent answers product and policy questions by reasoning over a conversation, deciding which tools to call, executing those tools as independent stream-processing services, and returning a single grounded reply to the user.
+A distributed, function-calling AI agent for e-commerce customer service, built on Apache Kafka and Google Gemini. The agent — named **Aura** — answers product and policy questions by reasoning over a conversation, deciding which tools to call, executing those tools as independent stream-processing services, and returning a single grounded reply to the user.
+
+It ships with two front ends: a **browser chat UI** (a branded landing page plus a chat view) and a **terminal CLI**. Both talk to the same Kafka backend.
 
 ---
 
@@ -77,6 +79,7 @@ Conversation state — history, interactions, and per-function execution status 
 
 | Service | Entry point | Consumes | Produces |
 |---|---|---|---|
+| Web UI | `agentkit.web.server` (FastAPI, port 8800) | `respond_to_user` | `agent-requests` |
 | Client CLI | `client/chat_cli.py` | `respond_to_user` | `agent-requests` |
 | Agent / router | `agentkit.services.agent_service` | `agent-requests`, `agent-function-responses` | tool topics, `agent-requests` |
 | Product search | `agentkit.services.tool_service` (`TOOL_NAME=search_products`) | `search_products` | `agent-function-responses` |
@@ -84,7 +87,7 @@ Conversation state — history, interactions, and per-function execution status 
 | Final response | `agentkit.services.tool_service` (`TOOL_NAME=respond_to_user`) | `respond_to_user` | `user-responses` |
 | Orchestrator | `agentkit.services.orchestrator_service` | `agent-responses` | tool topics |
 
-The three tool services are the **same** generic service (`tool_service`) running a different registered tool, selected by the `TOOL_NAME` environment variable.
+The three tool services are the **same** generic service (`tool_service`) running a different registered tool, selected by the `TOOL_NAME` environment variable. The web UI and CLI are interchangeable front ends — both publish to `agent-requests` and read the final reply from `respond_to_user`.
 
 ### Project structure
 
@@ -98,6 +101,7 @@ agentkit/                 # the package (clean-architecture layers)
   agent/                  # the decision loop: PromptBuilder, ConversationManager,
                           #   LoopGuard, AgentLoop
   services/               # thin runnable entry points (agent, tool, orchestrator)
+  web/                    # FastAPI web chat server (landing page + chat UI)
 client/
   chat_cli.py             # host-side CLI client (kafka-python only)
 
@@ -136,7 +140,8 @@ How this maps to SOLID:
 - **Apache Kafka** — the message bus that decouples the model from its tools. Run locally via the bundled `docker-compose.yml` (Confluent Kafka 7.5.0 with ZooKeeper).
 - **Quix Streams** — the stream-processing framework used by the backend services to consume, transform, and produce Kafka messages.
 - **Google Gemini (`gemini-2.5-flash`)** via the `google-genai` SDK — the reasoning model, driven entirely through function calling.
-- **kafka-python** — the lightweight producer/consumer used by the interactive CLI client.
+- **FastAPI + Uvicorn** — the web chat server: a branded landing page and chat view that bridge the browser to Kafka.
+- **kafka-python** — the lightweight producer/consumer used by the web server and the interactive CLI client.
 - **Docker and Docker Compose** — containerization and local orchestration of Kafka, the UI, Redis, and all backend services.
 - **Kafka UI** (provectuslabs) — a web console for inspecting topics and messages, exposed on port `8081`.
 - **Redis** — provisioned in the compose stack for future stateful extensions.
@@ -173,7 +178,7 @@ To also start the Kafka UI for debugging, use the dev profile:
 make up-dev      # or: docker compose --profile dev up -d --build
 ```
 
-This brings up ZooKeeper, Kafka, the backend services (`agent-service`, `search-products-service`, `search-faqs-service`, `respond-to-user-service`, `orchestrator-service`), and Redis. All backend services share one built image and differ only by the command and `TOOL_NAME` they run with. Kafka exposes a healthcheck, so the app services wait for the broker before starting; the first boot takes ~30–60s. Topics are auto-created on first use.
+This brings up ZooKeeper, Kafka, the backend services (`agent-service`, `search-products-service`, `search-faqs-service`, `respond-to-user-service`, `orchestrator-service`), the **web UI** (`web`, at `http://localhost:8800`), and Redis. All Python services share one built image and differ only by the command and `TOOL_NAME` they run with. Kafka exposes a healthcheck, so the app services wait for the broker before starting; the first boot takes ~30–60s. Topics are auto-created on first use.
 
 Confirm the services are healthy:
 
@@ -188,9 +193,17 @@ For a production single-host deployment (always-restart, bounded logging, memory
 
 With the dev profile running (`make up-dev`), open the Kafka UI at `http://localhost:8081` to watch messages move across topics in real time. This is the clearest way to observe the agent loop: a request on `agent-requests`, a tool call on `search_products`, a result on `agent-function-responses`, and a final message on `respond_to_user`.
 
-### 4. Talk to the agent
+### 4. Talk to Aura
 
-The client runs on the host and talks to Kafka over `localhost:9092`. Install its dependencies and start it:
+**Option A — Browser (recommended).** The web service starts with the stack on port 8800. Open:
+
+```
+http://localhost:8800
+```
+
+You get a branded landing page; click **Start chatting** to open the chat with Aura. Try questions like "do you have the iPhone 15 Pro in red?" or "what is your return policy?". The chat shows a live status indicator, quick-reply suggestions, an animated typing indicator, and supports light/dark themes.
+
+**Option B — Terminal CLI.** A host-side client that talks to Kafka over `localhost:9092`:
 
 ```bash
 pip install -e ".[client]"   # or: pip install -r requirements_chat.txt

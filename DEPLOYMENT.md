@@ -45,16 +45,23 @@ tool services boot. The first start therefore takes ~30–60s.
 
 ## 3. Verify
 
-From the host (Python 3.11+):
+Open the web UI in a browser:
+
+```
+http://localhost:8800
+```
+
+Click **Start chatting** and ask Aura a couple of questions
+(`do you have the iPhone 15 Pro in red?`, `what is your return policy?`).
+
+Or use the terminal client from the host (Python 3.11+):
 
 ```bash
 pip install -e ".[client]"   # or: pip install -r requirements_chat.txt
 python client/chat_cli.py
 ```
 
-Send a couple of messages (`do you have the iPhone 15 Pro in red?`,
-`what is your return policy?`) and confirm you get answers. Request and
-response payloads are written to `sessions/` for inspection.
+Request and response payloads are written to `sessions/` for inspection.
 
 ## What runs
 
@@ -66,6 +73,7 @@ response payloads are written to `sessions/` for inspection.
 | `search-faqs-service` | `search_faqs` tool |
 | `respond-to-user-service` | delivers final answers |
 | `orchestrator-service` | queued-function router |
+| `web` | browser chat UI (FastAPI, port 8800) |
 | `redis` | provisioned for future stateful use |
 
 The Kafka UI is **not** started in production. To bring it up temporarily for
@@ -79,13 +87,14 @@ docker compose --profile dev up -d kafka-ui   # http://localhost:8081
 
 | Port | Service | Notes |
 |---|---|---|
+| 8800 | Web UI | the browser chat interface |
 | 9092 | Kafka (host listener) | needed only if the CLI runs on the host |
 | 29092 | Kafka (internal) | container-to-container |
 | 6379 | Redis | unused by the app today |
 | 8081 | Kafka UI | dev profile only |
 
-For a locked-down host, restrict these with the firewall or bind them to
-`127.0.0.1` — only 9092 is needed by the host CLI, and none need to be public.
+For a locked-down host, expose only 8800 (the chat UI) publicly; restrict the
+rest with the firewall or bind them to `127.0.0.1`.
 
 ## Operations
 
