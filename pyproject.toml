@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentkit"
+version = "1.0.0"
+description = "Event-driven, function-calling agent framework on Kafka with Google Gemini"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    "quixstreams>=2.0.0",
+    "google-genai>=1.26.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+# The host-side CLI client uses kafka-python rather than Quix Streams.
+client = ["kafka-python>=2.0.0"]
+# Tooling used by CI and local development.
+dev = ["ruff>=0.6.0"]
+
+[project.scripts]
+agent-service = "agentkit.services.agent_service:main"
+tool-service = "agentkit.services.tool_service:main"
+orchestrator-service = "agentkit.services.orchestrator_service:main"
+
+[tool.setuptools.packages.find]
+include = ["agentkit*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+# Pragmatic default rule set; keep the bar sensible for a service codebase.
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]

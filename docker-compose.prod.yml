@@ -1,0 +1,77 @@
+# Production overrides for single-host deployment. Apply on top of the base
+# file:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# Adds always-restart, bounded JSON logging, and memory limits. The base file
+# already wires healthchecks and startup ordering.
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  zookeeper:
+    restart: always
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  kafka:
+    restart: always
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+  agent-service:
+    restart: always
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  search-products-service:
+    restart: always
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  search-faqs-service:
+    restart: always
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  respond-to-user-service:
+    restart: always
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  orchestrator-service:
+    restart: always
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  redis:
+    restart: always
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 512M
