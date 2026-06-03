@@ -110,6 +110,24 @@ services:
     networks:
       - default
 
+  # Browser chat UI. Open http://localhost:8800 once the stack is up.
+  web:
+    image: agentkit:latest
+    command: python -u -m agentkit.web.server
+    depends_on:
+      kafka:
+        condition: service_healthy
+      agent-service:
+        condition: service_started
+    environment:
+      KAFKA_BROKER: kafka:29092
+      WEB_PORT: "8800"
+    ports:
+      - "8800:8800"
+    restart: unless-stopped
+    networks:
+      - default
+
   redis:
     image: redis:7-alpine
     ports:

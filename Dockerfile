@@ -13,10 +13,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install the package and its dependencies from the canonical project metadata.
-# pyproject.toml is the single source of truth for runtime dependencies.
-COPY pyproject.toml README.md ./
+# pyproject.toml is the single source of truth for runtime dependencies. The
+# "web" extra adds FastAPI/uvicorn so the one shared image can also run the web
+# chat server. init_payload.json is bundled so the web server has the prompt.
+COPY pyproject.toml README.md init_payload.json ./
 COPY agentkit ./agentkit
-RUN pip install .
+RUN pip install ".[web]"
 
 # Drop root for runtime. Make /app writable by the runtime user: Quix Streams
 # creates a local state store at /app/state on startup.

@@ -23,6 +23,8 @@ class Settings:
     temperature: float = float(os.getenv("LLM_TEMPERATURE", "0"))
     max_output_tokens: int = int(os.getenv("LLM_MAX_OUTPUT_TOKENS", "10000"))
     tool_name: str = os.getenv("TOOL_NAME", "")
+    web_host: str = os.getenv("WEB_HOST", "0.0.0.0")
+    web_port: int = int(os.getenv("WEB_PORT", "8800"))
 
 
 settings = Settings()

@@ -18,6 +18,8 @@ dependencies = [
 [project.optional-dependencies]
 # The host-side CLI client uses kafka-python rather than Quix Streams.
 client = ["kafka-python>=2.0.0"]
+# The web chat front end (FastAPI server bridging the browser to Kafka).
+web = ["fastapi>=0.110.0", "uvicorn[standard]>=0.29.0", "kafka-python>=2.0.0"]
 # Tooling used by CI and local development.
 dev = ["ruff>=0.6.0"]
 
@@ -25,6 +27,7 @@ dev = ["ruff>=0.6.0"]
 agent-service = "agentkit.services.agent_service:main"
 tool-service = "agentkit.services.tool_service:main"
 orchestrator-service = "agentkit.services.orchestrator_service:main"
+web-server = "agentkit.web.server:main"
 
 [tool.setuptools.packages.find]
 include = ["agentkit*"]

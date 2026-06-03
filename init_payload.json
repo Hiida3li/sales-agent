@@ -6,7 +6,7 @@
   "payload": {
     "agent": {
       "context": {
-        "allowed_tools":["search_products","respond_to_user"],
+        "allowed_tools":["search_products","search_faqs","respond_to_user"],
         "query": "",
         "history": []
       },
