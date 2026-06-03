@@ -40,24 +40,24 @@ The architecture generalizes beyond retail. Replacing the mock tools with real i
 The system is a set of small Python services that communicate only through Kafka topics. No service calls another directly.
 
 ```
-                ┌─────────────┐
-   user query   │  chat_cli   │  final answer
-  ───────────►  │  (client)   │  ◄───────────
-                └──────┬──────┘
-                       │ agent-requests
-                       ▼
-                ┌─────────────┐   routes function call
-                │ llm_service │ ──────────────┐
-                │  (Gemini)   │               │  search_products
-                └──────┬──────┘               │  search_faqs
-                  ▲    │                       │  respond_to_user
-   agent-function-     │                       ▼
-   responses     │     │             ┌───────────────────────┐
-                 │     │             │  tool services        │
-                 └─────┴─────────────┤  - search_products    │
-                                     │  - search_faqs        │
-                                     │  - respond_to_user    │
-                                     └───────────────────────┘
+                ┌────────────────────┐
+   user query   │  client/chat_cli   │  final answer
+  ───────────►  │      (client)      │  ◄───────────
+                └─────────┬──────────┘
+                          │ agent-requests
+                          ▼
+                ┌────────────────────┐   routes function call
+                │   agent service    │ ──────────────┐
+                │      (Gemini)      │               │  search_products
+                └─────────┬──────────┘               │  search_faqs
+                   ▲      │                           │  respond_to_user
+   agent-function- │      │                           ▼
+   responses       │      │             ┌───────────────────────┐
+                   │      │             │  tool service  (xN)   │
+                   └──────┴─────────────┤  - search_products    │
+                                        │  - search_faqs        │
+                                        │  - respond_to_user    │
+                                        └───────────────────────┘
 ```
 
 The control loop:
@@ -111,6 +111,22 @@ DEPLOYMENT.md             # single-host deployment guide
 ```
 
 Each layer depends only on abstractions: the agent loop and services are written against the `LLMProvider`, `MessageBus`, and `Tool` interfaces, never against the Gemini or Quix Streams concretions.
+
+### Design
+
+The package follows a clean, layered architecture so that vendors and transports are swappable and capabilities are additive:
+
+- **Domain** (`domain/`) is pure data. Every model serializes to and from the exact JSON shape on the wire, so the message contract lives in one place instead of scattered `dict.get` chains.
+- **Abstractions** define the seams: `LLMProvider` (the model), `MessageBus` (transport), and `Tool` (a capability). The agent loop and services depend only on these interfaces.
+- **Implementations** are isolated at the edges: `GeminiProvider` is the only module that imports the Gemini SDK; `QuixMessageBus` is the only one that imports Quix Streams. Swapping either means writing one new class, not touching the core.
+- **The agent loop** is split into single-purpose collaborators — `PromptBuilder`, `ConversationManager`, `LoopGuard`, and `AgentLoop` — each independently testable, with the loop itself doing no I/O.
+
+How this maps to SOLID:
+
+- **Single responsibility** — reasoning, transport, state, safety, and routing are separate classes rather than one service doing everything.
+- **Open/closed** — a new tool is a new `Tool` subclass registered once; the loop, the provider, and the generic tool service are never modified.
+- **Liskov / interface segregation** — every `Tool`, `LLMProvider`, and `MessageBus` is substitutable behind a small, focused interface.
+- **Dependency inversion** — high-level policy (the agent loop) depends on abstractions; the concrete SDKs depend on those same abstractions, not the other way around.
 
 ---
 
@@ -211,8 +227,8 @@ The CLI streams workflow progress (which tools are queued, pending, and complete
 ### Shut down
 
 ```bash
-docker compose down        # stop services
-docker compose down -v     # stop and remove Kafka data volumes
+make down        # stop services        (docker compose down)
+make down-v      # stop and wipe data   (docker compose down -v)
 ```
 
 ---
