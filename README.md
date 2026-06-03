@@ -62,14 +62,14 @@ The system is a set of small Python services that communicate only through Kafka
 
 The control loop:
 
-1. The client (`chat_cli.py`) publishes a request payload to the `agent-requests` topic. The payload carries the conversation context, the system prompt, and the list of tools the agent is allowed to use.
-2. `llm_service.py` consumes the request, builds the prompt from the context, and calls Gemini with function calling forced on (`mode='ANY'`). The model must return one or more function calls.
+1. The client (`client/chat_cli.py`) publishes a request payload to the `agent-requests` topic. The payload carries the conversation context, the system prompt, and the list of tools the agent is allowed to use.
+2. The agent service consumes the request, builds the prompt from the context, and calls Gemini with function calling forced on (`mode='ANY'`). The model must return one or more function calls.
 3. The service queues those calls and routes the first one to a topic named after the function (for example, `search_products`).
 4. The matching tool service consumes the call, does its work, attaches the result, and publishes to `agent-function-responses`.
-5. `llm_service.py` consumes the response, merges the result into the conversation context, and either routes the next queued tool or, when the batch is complete, sends the payload back to `agent-requests` for the next reasoning step.
+5. The agent service consumes the response, merges the result into the conversation context, and either routes the next queued tool or, when the batch is complete, sends the payload back to `agent-requests` for the next reasoning step.
 6. The loop repeats until the model calls `respond_to_user`, whose service delivers the final content. The client consumes it and prints the answer.
 
-Safety and termination are built in: the same tool is never called with identical arguments more than twice, and after a hard ceiling of interactions the service forces a `respond_to_user` to prevent infinite loops.
+Safety and termination are built in: after a hard ceiling of interactions the agent forces a `respond_to_user` to prevent infinite loops, and the prompt instructs the model never to repeat a tool call with identical arguments.
 
 Conversation state — history, interactions, and per-function execution status (`queued`, `pending`, `completed`) — travels inside the message payload itself, so any service instance can process any message without shared session storage.
 

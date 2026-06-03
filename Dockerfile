@@ -11,8 +11,9 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY llm_service.py .
+# Copy the package. All backend services share this one image and differ only
+# by the command they run (see docker-compose.yml).
+COPY agentkit ./agentkit
 
-# Run the service
-CMD ["python", "-u", "llm_service.py"]
+# Default service; overridden per service via `command` in docker-compose.
+CMD ["python", "-u", "-m", "agentkit.services.agent_service"]

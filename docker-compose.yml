@@ -27,8 +27,12 @@ services:
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
 
-  llm-service:
+  # All backend services share one image (built once) and differ only by the
+  # command they run. Tool services select their tool via TOOL_NAME.
+  agent-service:
     build: .
+    image: agentkit:latest
+    command: python -u -m agentkit.services.agent_service
     depends_on:
       - kafka
     environment:
@@ -41,55 +45,49 @@ services:
       - default
 
   search-products-service:
-    build:
-      context: .
-      dockerfile_inline: |
-        FROM python:3.11-slim
-        WORKDIR /app
-        RUN apt-get update && apt-get install -y gcc && rm -rf /var/lib/apt/lists/*
-        COPY requirements.txt .
-        RUN pip install --no-cache-dir -r requirements.txt
-        COPY search_products_service.py .
-        CMD ["python", "search_products_service.py"]
+    image: agentkit:latest
+    command: python -u -m agentkit.services.tool_service
     depends_on:
+      - agent-service
       - kafka
     environment:
       KAFKA_BROKER: kafka:29092
+      TOOL_NAME: search_products
     restart: unless-stopped
     networks:
       - default
 
   search-faqs-service:
-    build:
-      context: .
-      dockerfile_inline: |
-        FROM python:3.11-slim
-        WORKDIR /app
-        RUN apt-get update && apt-get install -y gcc && rm -rf /var/lib/apt/lists/*
-        COPY requirements.txt .
-        RUN pip install --no-cache-dir -r requirements.txt
-        COPY search_faqs_service.py .
-        CMD ["python", "search_faqs_service.py"]
+    image: agentkit:latest
+    command: python -u -m agentkit.services.tool_service
     depends_on:
+      - agent-service
       - kafka
     environment:
       KAFKA_BROKER: kafka:29092
+      TOOL_NAME: search_faqs
     restart: unless-stopped
     networks:
       - default
 
   respond-to-user-service:
-    build:
-      context: .
-      dockerfile_inline: |
-        FROM python:3.11-slim
-        WORKDIR /app
-        RUN apt-get update && apt-get install -y gcc && rm -rf /var/lib/apt/lists/*
-        COPY requirements.txt .
-        RUN pip install --no-cache-dir -r requirements.txt
-        COPY respond_to_user_service.py .
-        CMD ["python", "respond_to_user_service.py"]
+    image: agentkit:latest
+    command: python -u -m agentkit.services.tool_service
     depends_on:
+      - agent-service
+      - kafka
+    environment:
+      KAFKA_BROKER: kafka:29092
+      TOOL_NAME: respond_to_user
+    restart: unless-stopped
+    networks:
+      - default
+
+  orchestrator-service:
+    image: agentkit:latest
+    command: python -u -m agentkit.services.orchestrator_service
+    depends_on:
+      - agent-service
       - kafka
     environment:
       KAFKA_BROKER: kafka:29092
@@ -97,30 +95,13 @@ services:
     networks:
       - default
 
-  orchestrator-service:
-    build:
-      context: .
-      dockerfile_inline: |
-        FROM python:3.11-slim
-        WORKDIR /app
-        RUN apt-get update && apt-get install -y gcc && rm -rf /var/lib/apt/lists/*
-        COPY requirements.txt .
-        RUN pip install --no-cache-dir -r requirements.txt
-        COPY orchestrator_service.py .
-        CMD ["python", "orchestrator_service.py"]
-    depends_on:
-      - kafka
-    environment:
-      KAFKA_BROKER: kafka:29092
-    restart: unless-stopped
-    networks:
-      - default
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
     networks:
       - default
+
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     depends_on:
