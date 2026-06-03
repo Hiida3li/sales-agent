@@ -75,14 +75,34 @@ Conversation state — history, interactions, and per-function execution status 
 
 ### Services
 
-| Service | File | Consumes | Produces |
+| Service | Entry point | Consumes | Produces |
 |---|---|---|---|
-| Client CLI | `chat_cli.py` | `respond_to_user` | `agent-requests` |
-| Model / router | `llm_service.py` | `agent-requests`, `agent-function-responses` | tool topics, `agent-requests` |
-| Product search | `search_products_service.py` | `search_products` | `agent-function-responses` |
-| FAQ search | `search_faqs_service.py` | `search_faqs` | `agent-function-responses` |
-| Final response | `respond_to_user_service.py` | `respond_to_user` | `user-responses` |
-| Orchestrator | `orchestrator_service.py` | `agent-responses` | tool topics |
+| Client CLI | `client/chat_cli.py` | `respond_to_user` | `agent-requests` |
+| Agent / router | `agentkit.services.agent_service` | `agent-requests`, `agent-function-responses` | tool topics, `agent-requests` |
+| Product search | `agentkit.services.tool_service` (`TOOL_NAME=search_products`) | `search_products` | `agent-function-responses` |
+| FAQ search | `agentkit.services.tool_service` (`TOOL_NAME=search_faqs`) | `search_faqs` | `agent-function-responses` |
+| Final response | `agentkit.services.tool_service` (`TOOL_NAME=respond_to_user`) | `respond_to_user` | `user-responses` |
+| Orchestrator | `agentkit.services.orchestrator_service` | `agent-responses` | tool topics |
+
+The three tool services are the **same** generic service (`tool_service`) running a different registered tool, selected by the `TOOL_NAME` environment variable.
+
+### Project structure
+
+```
+agentkit/                 # the package (clean-architecture layers)
+  config.py               # Settings loaded from the environment
+  domain/                 # pure data models that mirror the Kafka JSON contract
+  llm/                    # LLMProvider interface + GeminiProvider
+  messaging/              # MessageBus interface + QuixMessageBus
+  tools/                  # Tool interface, ToolRegistry, and the built-in tools
+  agent/                  # the decision loop: PromptBuilder, ConversationManager,
+                          #   LoopGuard, AgentLoop
+  services/               # thin runnable entry points (agent, tool, orchestrator)
+client/
+  chat_cli.py             # host-side CLI client (kafka-python only)
+```
+
+Each layer depends only on abstractions: the agent loop and services are written against the `LLMProvider`, `MessageBus`, and `Tool` interfaces, never against the Gemini or Quix Streams concretions.
 
 ---
 
@@ -130,13 +150,13 @@ Or use the helper script, which tears down volumes first for a clean start:
 ./run.sh
 ```
 
-This brings up ZooKeeper, Kafka, the backend services (`llm-service`, `search-products-service`, `search-faqs-service`, `respond-to-user-service`, `orchestrator-service`), Redis, and Kafka UI. Topics are auto-created on first use.
+This brings up ZooKeeper, Kafka, the backend services (`agent-service`, `search-products-service`, `search-faqs-service`, `respond-to-user-service`, `orchestrator-service`), Redis, and Kafka UI. All backend services share one built image and differ only by the command and `TOOL_NAME` they run with. Topics are auto-created on first use.
 
 Confirm the services are healthy:
 
 ```bash
 docker compose ps
-docker compose logs -f llm-service
+docker compose logs -f agent-service
 ```
 
 ### 3. Inspect the message flow (optional)
