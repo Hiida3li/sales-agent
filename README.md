@@ -100,6 +100,14 @@ agentkit/                 # the package (clean-architecture layers)
   services/               # thin runnable entry points (agent, tool, orchestrator)
 client/
   chat_cli.py             # host-side CLI client (kafka-python only)
+
+pyproject.toml            # package metadata, dependencies, entry points
+Dockerfile                # one shared image for all backend services
+docker-compose.yml        # base stack (Kafka UI behind the "dev" profile)
+docker-compose.prod.yml   # production overrides (restart, limits, logging)
+Makefile                  # build / up / down / logs / deploy / chat
+DEPLOYMENT.md             # single-host deployment guide
+.github/workflows/ci.yml  # lint, compile, build, publish image
 ```
 
 Each layer depends only on abstractions: the agent loop and services are written against the `LLMProvider`, `MessageBus`, and `Tool` interfaces, never against the Gemini or Quix Streams concretions.
@@ -129,11 +137,10 @@ Each layer depends only on abstractions: the agent loop and services are written
 
 ### 1. Configure environment
 
-Create a `.env` file in the project root:
+Copy the example and fill in your key:
 
-```
-GOOGLE_API_KEY=your_gemini_api_key_here
-KAFKA_BROKER=localhost:9092
+```bash
+cp .env.example .env   # then set GOOGLE_API_KEY
 ```
 
 ### 2. Start the stack
@@ -141,35 +148,37 @@ KAFKA_BROKER=localhost:9092
 Build and launch Kafka and all backend services:
 
 ```bash
-docker compose up -d --build
+make up          # or: docker compose up -d --build
 ```
 
-Or use the helper script, which tears down volumes first for a clean start:
+To also start the Kafka UI for debugging, use the dev profile:
 
 ```bash
-./run.sh
+make up-dev      # or: docker compose --profile dev up -d --build
 ```
 
-This brings up ZooKeeper, Kafka, the backend services (`agent-service`, `search-products-service`, `search-faqs-service`, `respond-to-user-service`, `orchestrator-service`), Redis, and Kafka UI. All backend services share one built image and differ only by the command and `TOOL_NAME` they run with. Topics are auto-created on first use.
+This brings up ZooKeeper, Kafka, the backend services (`agent-service`, `search-products-service`, `search-faqs-service`, `respond-to-user-service`, `orchestrator-service`), and Redis. All backend services share one built image and differ only by the command and `TOOL_NAME` they run with. Kafka exposes a healthcheck, so the app services wait for the broker before starting; the first boot takes ~30–60s. Topics are auto-created on first use.
 
 Confirm the services are healthy:
 
 ```bash
-docker compose ps
-docker compose logs -f agent-service
+make ps          # docker compose ps
+make logs        # docker compose logs -f
 ```
+
+For a production single-host deployment (always-restart, bounded logging, memory limits), see **[DEPLOYMENT.md](DEPLOYMENT.md)** or run `make deploy`.
 
 ### 3. Inspect the message flow (optional)
 
-Open the Kafka UI at `http://localhost:8081` to watch messages move across topics in real time. This is the clearest way to observe the agent loop: a request on `agent-requests`, a tool call on `search_products`, a result on `agent-function-responses`, and a final message on `respond_to_user`.
+With the dev profile running (`make up-dev`), open the Kafka UI at `http://localhost:8081` to watch messages move across topics in real time. This is the clearest way to observe the agent loop: a request on `agent-requests`, a tool call on `search_products`, a result on `agent-function-responses`, and a final message on `respond_to_user`.
 
 ### 4. Talk to the agent
 
 The client runs on the host and talks to Kafka over `localhost:9092`. Install its dependencies and start it:
 
 ```bash
-pip install -r requirements_chat.txt
-python client/chat_cli.py   # run from the repository root
+pip install -e ".[client]"   # or: pip install -r requirements_chat.txt
+python client/chat_cli.py    # run from the repository root
 ```
 
 Then chat:
