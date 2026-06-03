@@ -183,3 +183,7 @@ src/checkpoints/
 
 # IDEs
 .idea/
+
+# Runtime artifacts
+sessions/
+state/
