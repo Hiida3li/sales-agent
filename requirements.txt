@@ -1,0 +1,4 @@
+quixstreams>=2.0.0
+google-genai>=1.26.0
+python-dotenv>=1.0.0
+tqdm>=4.66.0

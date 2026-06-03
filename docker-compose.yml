@@ -1,0 +1,137 @@
+version: '3.8'
+
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+
+  llm-service:
+    build: .
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BROKER: kafka:29092
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+    restart: unless-stopped
+    volumes:
+      - ./.env:/app/.env
+    networks:
+      - default
+
+  search-products-service:
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM python:3.11-slim
+        WORKDIR /app
+        RUN apt-get update && apt-get install -y gcc && rm -rf /var/lib/apt/lists/*
+        COPY requirements.txt .
+        RUN pip install --no-cache-dir -r requirements.txt
+        COPY search_products_service.py .
+        CMD ["python", "search_products_service.py"]
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BROKER: kafka:29092
+    restart: unless-stopped
+    networks:
+      - default
+
+  search-faqs-service:
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM python:3.11-slim
+        WORKDIR /app
+        RUN apt-get update && apt-get install -y gcc && rm -rf /var/lib/apt/lists/*
+        COPY requirements.txt .
+        RUN pip install --no-cache-dir -r requirements.txt
+        COPY search_faqs_service.py .
+        CMD ["python", "search_faqs_service.py"]
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BROKER: kafka:29092
+    restart: unless-stopped
+    networks:
+      - default
+
+  respond-to-user-service:
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM python:3.11-slim
+        WORKDIR /app
+        RUN apt-get update && apt-get install -y gcc && rm -rf /var/lib/apt/lists/*
+        COPY requirements.txt .
+        RUN pip install --no-cache-dir -r requirements.txt
+        COPY respond_to_user_service.py .
+        CMD ["python", "respond_to_user_service.py"]
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BROKER: kafka:29092
+    restart: unless-stopped
+    networks:
+      - default
+
+  orchestrator-service:
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM python:3.11-slim
+        WORKDIR /app
+        RUN apt-get update && apt-get install -y gcc && rm -rf /var/lib/apt/lists/*
+        COPY requirements.txt .
+        RUN pip install --no-cache-dir -r requirements.txt
+        COPY orchestrator_service.py .
+        CMD ["python", "orchestrator_service.py"]
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BROKER: kafka:29092
+    restart: unless-stopped
+    networks:
+      - default
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - default
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    depends_on:
+      - kafka
+    ports:
+      - "8081:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+
+networks:
+  default:
+    driver: bridge
