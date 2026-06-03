@@ -18,8 +18,10 @@ COPY pyproject.toml README.md ./
 COPY agentkit ./agentkit
 RUN pip install .
 
-# Drop root for runtime.
-RUN useradd --create-home --uid 1000 appuser
+# Drop root for runtime. Make /app writable by the runtime user: Quix Streams
+# creates a local state store at /app/state on startup.
+RUN useradd --create-home --uid 1000 appuser \
+    && chown -R appuser:appuser /app
 USER appuser
 
 # Default service; each backend service overrides `command` in docker-compose.
